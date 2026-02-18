@@ -3,7 +3,7 @@ import sqlite3
 # Connect to SQLite (in memory for testing)
 conn = sqlite3.connect(':memory:')
 
-# this is important because foreign keys are OFF by default in SQLite
+# Enable foreign keys in SQLite
 conn.execute("PRAGMA foreign_keys = ON;")
 
 cursor = conn.cursor()
@@ -21,7 +21,10 @@ def print_table(cursor, table_name):
     for row in rows:
         print(" | ".join(str(value) for value in row))
 
-# Create tables
+
+# -------------------------
+# Create tables (FIXED)
+# -------------------------
 
 cursor.execute("""
 CREATE TABLE student (
@@ -30,21 +33,30 @@ CREATE TABLE student (
     age INT
 )
 """)
+
 cursor.execute("""
 CREATE TABLE registered_courses (
     student_id INT,
     course_id INT,
+    PRIMARY KEY (student_id, course_id),              -- FIX
     FOREIGN KEY (student_id) REFERENCES student(student_id)
 )
 """)
+
 cursor.execute("""
 CREATE TABLE grades (
     student_id INT,
     course_id INT,
     grade REAL,
+    PRIMARY KEY (student_id, course_id),              -- FIX
     FOREIGN KEY (student_id) REFERENCES student(student_id)
 )
 """)
+
+
+# -------------------------
+# Insert data
+# -------------------------
 
 students = [
     (1, 'Alice', 20),
@@ -52,9 +64,6 @@ students = [
     (3, 'Charlie', 21)
 ]
 cursor.executemany("INSERT INTO student VALUES (?, ?, ?)", students)
-
-
-
 
 registered = [
     (1, 101),
@@ -64,32 +73,47 @@ registered = [
 ]
 cursor.executemany("INSERT INTO registered_courses VALUES (?, ?)", registered)
 
-grades = [
+grades_data = [
     (1, 101, 85),
     (1, 102, 92),
     (2, 101, 78),
     (3, 103, 88)
 ]
-cursor.executemany("INSERT INTO grades VALUES (?, ?, ?)", grades)
+cursor.executemany("INSERT INTO grades VALUES (?, ?, ?)", grades_data)
+
 conn.commit()
+
+
+# -------------------------
+# Print tables
+# -------------------------
+
 print_table(cursor, "student")
 print_table(cursor, "registered_courses")
 print_table(cursor, "grades")
 
-# --- Max and Average Grades per Student
+
+# -------------------------
+# Max and Average Grades per Student (FIXED MAX QUERY)
 # -------------------------
 
-# FIX HERE: Your previous code only calculated for student_id = 1
-# We loop over all students
 for student_id in [1, 2, 3]:
-    # Max grade
+
+    # Correct MAX grade + matching course
     cursor.execute("""
-    SELECT MAX(grade), course_id
+    SELECT course_id, grade
     FROM grades
     WHERE student_id = ?
+    ORDER BY grade DESC
+    LIMIT 1
     """, (student_id,))
-    max_grade, course_id = cursor.fetchone()
-    print(f"\nStudent {student_id} Maximum grade: {max_grade}, Course ID: {course_id}")
+    
+    result = cursor.fetchone()
+    if result:
+        course_id, max_grade = result
+        print(f"\nStudent {student_id} Maximum grade: {max_grade}, Course ID: {course_id}")
+    else:
+        print(f"\nStudent {student_id} has no grades.")
 
     # Average grade
     cursor.execute("""
@@ -97,12 +121,16 @@ for student_id in [1, 2, 3]:
     FROM grades
     WHERE student_id = ?
     """, (student_id,))
+    
     avg_grade = cursor.fetchone()[0]
-    print(f"Student {student_id} Average grade: {avg_grade:.2f}")
+    if avg_grade is not None:
+        print(f"Student {student_id} Average grade: {avg_grade:.2f}")
+    else:
+        print(f"Student {student_id} has no grades.")
+
 
 # -------------------------
-# Close Connection
+# Close connection
 # -------------------------
-# FIX HERE: Close connection **after all operations**
+
 conn.close()
-
